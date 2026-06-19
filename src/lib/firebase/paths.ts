@@ -15,11 +15,11 @@ import type {
 } from "../../types";
 
 export const userDoc = (uid: string) =>
-  doc(db, "users", uid) as DocumentReference<UserProfile>;
+  doc(assertDb(), "users", uid) as DocumentReference<UserProfile>;
 
 export const preferencesDoc = (uid: string) =>
   doc(
-    db,
+    assertDb(),
     "users",
     uid,
     "preferences",
@@ -27,11 +27,11 @@ export const preferencesDoc = (uid: string) =>
   ) as DocumentReference<StudyPreferences>;
 
 export const coursesCollection = (uid: string) =>
-  collection(db, "users", uid, "courses") as CollectionReference<Course>;
+  collection(assertDb(), "users", uid, "courses") as CollectionReference<Course>;
 
 export const assignmentsCollection = (uid: string) =>
   collection(
-    db,
+    assertDb(),
     "users",
     uid,
     "assignments",
@@ -39,7 +39,7 @@ export const assignmentsCollection = (uid: string) =>
 
 export const focusSessionsCollection = (uid: string) =>
   collection(
-    db,
+    assertDb(),
     "users",
     uid,
     "focusSessions",
@@ -47,8 +47,15 @@ export const focusSessionsCollection = (uid: string) =>
 
 export const recommendationsCollection = (uid: string) =>
   collection(
-    db,
+    assertDb(),
     "users",
     uid,
     "recommendations",
   ) as CollectionReference<Recommendation>;
+
+function assertDb() {
+  if (!db) {
+    throw new Error("Firebase is not configured. Use demo mode or add .env.local values.");
+  }
+  return db;
+}

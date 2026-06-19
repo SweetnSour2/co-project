@@ -1,13 +1,20 @@
 import {
   type CollectionReference,
   type DocumentData,
+  Timestamp,
   addDoc,
   orderBy,
   serverTimestamp,
 } from "firebase/firestore";
 import { useMemo, useState } from "react";
+import { isFirebaseConfigured } from "../../lib/firebase/client";
 import { recommendationsCollection } from "../../lib/firebase/paths";
 import { useCollection } from "../../lib/firebase/useCollection";
+import {
+  createLocalId,
+  type LocalRecommendation,
+  useLocalCollection,
+} from "../../lib/local/demoStore";
 import { deterministicRecommendation } from "../../lib/scoring/recommendations";
 import type { Assignment, FocusSession, RecommendationOutput, StudyPreferences } from "../../types";
 import { useAuth } from "../auth/AuthContext";
@@ -23,8 +30,9 @@ export function useRecommendation({
 }) {
   const { user } = useAuth();
   const constraints = useMemo(() => [orderBy("createdAt", "desc")], []);
-  const ref = user ? recommendationsCollection(user.uid) : null;
+  const ref = user && isFirebaseConfigured ? recommendationsCollection(user.uid) : null;
   const { data: recommendations } = useCollection(ref, constraints);
+  const local = useLocalCollection<LocalRecommendation>(user?.uid, "recommendations");
   const [loading, setLoading] = useState(false);
   const fallback = deterministicRecommendation({
     assignments,
@@ -32,12 +40,32 @@ export function useRecommendation({
     preferences,
     availableMinutes: preferences?.preferredSessionMinutes,
   });
-  const latest = recommendations[0]?.output ?? fallback;
+  const history = isFirebaseConfigured ? recommendations : local.items;
+  const latest = history[0]?.output ?? fallback;
 
   async function generateRecommendation() {
     if (!user) return fallback;
     setLoading(true);
     try {
+      if (!isFirebaseConfigured) {
+        local.setItems((items) => [
+          {
+            id: createLocalId(),
+            type: "next_task",
+            inputSnapshot: {
+              source: "local_demo",
+              assignmentCount: assignments.length,
+              focusSessionCount: focusSessions.length,
+            },
+            output: fallback,
+            model: "deterministic-local",
+            createdAt: Timestamp.now(),
+          },
+          ...items,
+        ]);
+        return fallback;
+      }
+
       const token = await user.getIdToken();
       const response = await fetch("/api/recommendations", {
         method: "POST",
@@ -74,7 +102,7 @@ export function useRecommendation({
 
   return {
     recommendation: latest,
-    recommendationHistory: recommendations,
+    recommendationHistory: history,
     loading,
     generateRecommendation,
   };

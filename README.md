@@ -1,15 +1,15 @@
 # StudyPilot AI
 
-An AI-powered academic productivity assistant for students. The MVP helps students add assignments, get an explainable next-task recommendation, run focus sessions, and track lightweight progress.
+An AI-powered academic productivity assistant for students. The current app uses the Figma-exported Adaptive Productivity prototype UI as the source of truth for layout, styling, navigation, and UX.
 
 ## Stack
 
 - React + TypeScript + Vite
 - Tailwind CSS
-- Firebase Authentication
-- Firestore
-- Vercel serverless API functions
-- OpenAI API
+- Figma-exported shadcn/Radix UI components
+- Motion animations
+- Recharts
+- Mock AI planning data for local prototype testing
 
 ## Local Setup
 
@@ -19,19 +19,45 @@ An AI-powered academic productivity assistant for students. The MVP helps studen
    npm install
    ```
 
-2. Copy environment variables:
+2. Start the app:
+
+   ```bash
+   npm run dev -- --host 127.0.0.1
+   ```
+
+3. Open the URL Vite prints, usually:
+
+   ```text
+   http://127.0.0.1:5173/
+   ```
+
+If port `5173` is already busy, start on another port:
+
+   ```bash
+   npm run dev -- --host 127.0.0.1 --port 5175
+   ```
+
+## Prototype Routes
+
+- `/` landing page
+- `/dashboard` AI dashboard
+- `/tasks` task planner
+- `/focus` focus session
+- `/ai` AI assistant
+- `/progress` progress and gamification
+- `/customize` themes and preferences
+
+## Firebase/OpenAI Setup
+
+The restored Figma prototype currently runs with mock AI/productivity data. Add Firebase/OpenAI later when the UI is approved and ready to be wired to real accounts and persistence.
+
+1. Copy environment variables:
 
    ```bash
    cp .env.example .env.local
    ```
 
-3. Fill in Firebase client values and server values in `.env.local`.
-
-4. Start the app:
-
-   ```bash
-   npm run dev
-   ```
+2. Fill in Firebase client values and server values in `.env.local`.
 
 ## Environment Variables
 
@@ -52,19 +78,17 @@ Server variables:
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
 
-## MVP Flow
+## Prototype Flow
 
-1. Sign up or log in.
-2. Complete study preference onboarding.
-3. Add courses and assignments.
-4. Refresh the dashboard recommendation.
-5. Start a focus session from the recommended task.
-6. Review progress and adjust preferences.
+1. Open the landing page.
+2. Click Get Started to enter the dashboard.
+3. Review AI insights, workload, and Canvas-style deadlines.
+4. Use Tasks, Focus, AI Assistant, Progress, and Customize from the sidebar.
 
 ## Scripts
 
 - `npm run dev` starts Vite.
-- `npm run build` type-checks and builds production assets.
+- `npm run build` builds production assets.
 - `npm run lint` runs ESLint.
 - `npm run test` runs Vitest.
 

@@ -6,7 +6,7 @@ import {
   updateProfile,
   type User,
 } from "firebase/auth";
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { Timestamp, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import {
   createContext,
   useCallback,
@@ -16,12 +16,21 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { auth, db } from "../../lib/firebase/client";
+import { auth, db, isFirebaseConfigured } from "../../lib/firebase/client";
 import { preferencesDoc, userDoc } from "../../lib/firebase/paths";
 import type { StudyPreferences, UserProfile } from "../../types";
 
+interface DemoUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  getIdToken: () => Promise<string>;
+}
+
+type AppUser = User | DemoUser;
+
 interface AuthContextValue {
-  user: User | null;
+  user: AppUser | null;
   profile: UserProfile | null;
   preferences: StudyPreferences | null;
   loading: boolean;
@@ -34,6 +43,39 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const demoAuthKey = "studypilot-demo:auth";
+
+function defaultPreferences(): StudyPreferences {
+  return {
+    preferredStudyStartHour: 16,
+    preferredStudyEndHour: 21,
+    preferredSessionMinutes: 25,
+    burnoutSensitivity: "medium",
+    maxDailyStudyMinutes: 240,
+    updatedAt: Timestamp.now(),
+  };
+}
+
+function makeDemoUser(name = "Demo Student", email = "demo@student.local"): DemoUser {
+  return {
+    uid: "demo-user",
+    email,
+    displayName: name,
+    getIdToken: async () => "demo-token",
+  };
+}
+
+function makeDemoProfile(user: DemoUser): UserProfile {
+  const now = Timestamp.now();
+  return {
+    uid: user.uid,
+    email: user.email ?? "",
+    displayName: user.displayName ?? "Demo Student",
+    createdAt: now,
+    updatedAt: now,
+    onboardingCompleted: true,
+  };
+}
 
 async function ensureProfile(user: User) {
   const ref = userDoc(user.uid);
@@ -60,12 +102,31 @@ async function ensureProfile(user: User) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [preferences, setPreferences] = useState<StudyPreferences | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isFirebaseConfigured || !auth) {
+      const stored = window.localStorage.getItem(demoAuthKey);
+      const demoUser = stored
+        ? makeDemoUser(JSON.parse(stored).displayName, JSON.parse(stored).email)
+        : makeDemoUser();
+      window.localStorage.setItem(
+        demoAuthKey,
+        JSON.stringify({
+          displayName: demoUser.displayName,
+          email: demoUser.email,
+        }),
+      );
+      setUser(demoUser);
+      setProfile(makeDemoProfile(demoUser));
+      setPreferences(defaultPreferences());
+      setLoading(false);
+      return;
+    }
+
     return onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       if (nextUser) {
@@ -79,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isFirebaseConfigured) return;
     const unsubscribeProfile = onSnapshot(userDoc(user.uid), (snapshot) => {
       setProfile(snapshot.exists() ? snapshot.data() : null);
     });
@@ -94,6 +155,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
+    if (!isFirebaseConfigured || !auth || !db) {
+      const demoUser = makeDemoUser(name || "Demo Student", email || "demo@student.local");
+      window.localStorage.setItem(
+        demoAuthKey,
+        JSON.stringify({ displayName: demoUser.displayName, email: demoUser.email }),
+      );
+      setUser(demoUser);
+      setProfile(makeDemoProfile(demoUser));
+      setPreferences(defaultPreferences());
+      return;
+    }
+
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName: name });
     await setDoc(
@@ -111,11 +184,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logIn = useCallback(async (email: string, password: string) => {
+    if (!isFirebaseConfigured || !auth) {
+      const stored = window.localStorage.getItem(demoAuthKey);
+      const demoUser = stored
+        ? makeDemoUser(JSON.parse(stored).displayName, JSON.parse(stored).email)
+        : makeDemoUser("Demo Student", email || "demo@student.local");
+      setUser(demoUser);
+      setProfile(makeDemoProfile(demoUser));
+      setPreferences(defaultPreferences());
+      return;
+    }
+
     const credential = await signInWithEmailAndPassword(auth, email, password);
     await ensureProfile(credential.user);
   }, []);
 
-  const logOut = useCallback(() => signOut(auth), []);
+  const logOut = useCallback(async () => {
+    if (!isFirebaseConfigured || !auth) {
+      window.localStorage.removeItem(demoAuthKey);
+      const demoUser = makeDemoUser();
+      window.localStorage.setItem(
+        demoAuthKey,
+        JSON.stringify({ displayName: demoUser.displayName, email: demoUser.email }),
+      );
+      setUser(demoUser);
+      setProfile(makeDemoProfile(demoUser));
+      setPreferences(defaultPreferences());
+      return;
+    }
+
+    await signOut(auth);
+  }, []);
 
   const completeOnboarding = useCallback(
     async (
@@ -124,6 +223,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     ) => {
       if (!user) return;
+      if (!isFirebaseConfigured) {
+        const demoUser = makeDemoUser(updates.displayName, user.email ?? "demo@student.local");
+        window.localStorage.setItem(
+          demoAuthKey,
+          JSON.stringify({ displayName: demoUser.displayName, email: demoUser.email }),
+        );
+        setUser(demoUser);
+        setProfile({
+          ...makeDemoProfile(demoUser),
+          onboardingCompleted: true,
+        });
+        setPreferences({
+          preferredStudyStartHour: updates.preferredStudyStartHour,
+          preferredStudyEndHour: updates.preferredStudyEndHour,
+          preferredSessionMinutes: updates.preferredSessionMinutes,
+          burnoutSensitivity: updates.burnoutSensitivity,
+          maxDailyStudyMinutes: updates.maxDailyStudyMinutes,
+          updatedAt: Timestamp.now(),
+        });
+        return;
+      }
+
       await Promise.all([
         setDoc(
           userDoc(user.uid),
