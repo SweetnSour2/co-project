@@ -19,6 +19,8 @@ An AI-powered academic productivity assistant for students. The current app uses
    npm install
    ```
 
+   The repo includes `.npmrc` with `legacy-peer-deps=true` because the Figma-exported prototype has older peer dependency ranges.
+
 2. Start the app:
 
    ```bash
@@ -35,6 +37,14 @@ If port `5173` is already busy, start on another port:
 
    ```bash
    npm run dev -- --host 127.0.0.1 --port 5175
+   ```
+
+If the page is blank, stop the dev server, delete the local install, reinstall, and start again:
+
+   ```bash
+   rm -rf node_modules package-lock.json
+   npm install
+   npm run dev -- --host 127.0.0.1
    ```
 
 ## Prototype Routes
