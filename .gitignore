@@ -1,0 +1,10 @@
+dist
+node_modules
+.env
+.env.local
+.env.*.local
+.firebase
+.vercel
+coverage
+*.tsbuildinfo
+.DS_Store
